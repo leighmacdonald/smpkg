@@ -1,66 +1,89 @@
-use clap::ArgMatches;
-use smpkg::{
-    commands::parser::commands,
-    sourcemod::download::{fetch_latest_version, fetch_version},
-};
+#![feature(str_as_str)]
+
+use clap::{ArgMatches, Command, arg};
+use resolve_path::PathResolveExt;
+use smpkg::CommandHandler;
+use smpkg::sdk::commands::{SDKInstaller, SDKVersion};
+use smpkg::sdk::download;
+use std::path::Path;
 use tokio;
-
-async fn handle_sourcemod_latest(
-    latest_version_matches: &ArgMatches,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let branch = latest_version_matches
-        .get_one::<String>("branch")
-        .expect("Invalid branch");
-    let result = fetch_latest_version(branch).await;
-    match result {
-        Ok(version) => {
-            println!("Latest version: {version}");
-            Ok(())
-        }
-        Err(e) => Err(e.into()),
-    }
-}
-
-async fn handle_sourcemod_install(
-    latest_version_matches: &ArgMatches,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let branch = latest_version_matches
-        .get_one::<String>("branch")
-        .expect("Invalid branch")
-        .clone();
-    let result = fetch_version(branch).await;
-    match result {
-        Ok(version) => {
-            println!("Latest version: {:?}", version);
-            Ok(())
-        }
-        Err(e) => Err(e.into()),
-    }
-}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let root = "~/.smpkg".try_resolve()?;
+    let root_path = root.as_path();
+    run(root_path).await
+}
+
+pub async fn run(root_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if !root_path.exists() {
+        std::fs::create_dir_all(root_path)?;
+    }
+
     let matches = commands();
 
-    match matches.subcommand() {
-        Some(("sourcemod", sourcemod_matches)) => {
-            let subcommand = sourcemod_matches
-                .subcommand()
-                .unwrap_or(("latest-version", sourcemod_matches));
+    if let Some(("sourcemod", sourcemod_matches)) = matches.subcommand() {
+        let subcommand = sourcemod_matches
+            .subcommand()
+            .unwrap_or(("latest-version", sourcemod_matches));
 
-            match subcommand {
-                ("latest-version", sourcemod_matches) => {
-                    handle_sourcemod_latest(sourcemod_matches).await?
-                }
-                ("install", sourcemod_matches) => {
-                    handle_sourcemod_install(sourcemod_matches).await?
-                }
-                (_, _) => {
-                    unreachable!()
-                }
+        match subcommand {
+            ("latest-version", sourcemod_matches) => {
+                SDKVersion {}.execute(root_path, sourcemod_matches).await
             }
+            ("install", sourcemod_matches) => {
+                SDKInstaller {}.execute(root_path, sourcemod_matches).await
+            }
+            ("ls", _) => sourcemo_list_handler(root_path).await,
+            (_, _) => Ok(()),
         }
-        _ => unreachable!(),
+    } else {
+        Ok(())
+    }
+}
+
+pub fn commands() -> ArgMatches {
+    return Command::new("smpkg")
+        .about("A simple package manager")
+        // .version(crate_version!)
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(commands_sourcemod())
+        .get_matches();
+}
+
+pub fn sourcemod_latest_version() -> Command {
+    Command::new("latest-version")
+        .short_flag('v')
+        .about("Fetches the latest version of Sourcemod")
+        .arg(arg!(<branch> "The remote branch"))
+}
+
+pub fn sourcemod_install() -> Command {
+    Command::new("install")
+        .short_flag('i')
+        .about("Download and install sourcemod")
+        .arg(arg!(<branch> "The remote branch"))
+}
+
+pub fn sourcemo_list() -> Command {
+    Command::new("ls").about("List installed sourcemod versions")
+}
+
+pub fn commands_sourcemod() -> Command {
+    Command::new("sourcemod")
+        .about("Sourcemod distribution management commands")
+        .alias("sm")
+        .arg_required_else_help(true)
+        .subcommand(sourcemod_latest_version())
+        .subcommand(sourcemod_install())
+}
+
+async fn sourcemo_list_handler(root: &Path) -> Result<(), Box<dyn std::error::Error + 'static>> {
+    println!("Currently installed sourcemod SDKs:");
+    let sdks = download::get_installed_sdks(root);
+    for sdk in sdks {
+        println!("{}", sdk);
     }
     Ok(())
 }
