@@ -43,10 +43,9 @@ much smaller than say a language like C without a builtin package manager, we ca
 
 # Run
 
-$ nix-shell -p pkg-config openssl
-$ cargo run -- --help
+$ cargo run -- sourcemod install 1.13
 
-# Previous attemps
+# Previous work
 
-https://github.com/Phil25/SMAM
-https://github.com/Scags/SMAM2
+- [SMAM](https://github.com/Phil25/SMAM)
+- [SMAM2](https://github.com/Scags/SMAM2)

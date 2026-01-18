@@ -2,9 +2,7 @@
 
 use clap::{ArgMatches, Command, arg};
 use resolve_path::PathResolveExt;
-use smpkg::CommandHandler;
 use smpkg::sdk::Manager;
-use smpkg::sdk::commands::{SDKInstaller, SDKVersion};
 use std::path::Path;
 use tokio;
 
@@ -27,11 +25,9 @@ pub async fn run(root_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
         match subcommand {
             ("latest-version", sourcemod_matches) => {
-                SDKVersion {}.execute(root_path, sourcemod_matches).await
+                execute_latest_version(root_path, sourcemod_matches).await
             }
-            ("install", sourcemod_matches) => {
-                SDKInstaller {}.execute(root_path, sourcemod_matches).await
-            }
+            ("install", sourcemod_matches) => execute_install(root_path, sourcemod_matches).await,
             ("ls", _) => sourcemo_list_handler(root_path).await,
             (_, _) => Ok(()),
         }
@@ -85,4 +81,33 @@ async fn sourcemo_list_handler(root: &Path) -> Result<(), Box<dyn std::error::Er
         println!("{}", sdk);
     }
     Ok(())
+}
+
+async fn execute_latest_version(
+    root: &Path,
+    latest_version_matches: &ArgMatches,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let branch = latest_version_matches
+        .get_one::<String>("branch")
+        .expect("Invalid branch");
+    let result = Manager::new(root).fetch_latest_version(branch).await;
+    match result {
+        Ok(version) => {
+            println!("Latest version: {version}");
+            Ok(())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+async fn execute_install(
+    root: &Path,
+    latest_version_matches: &ArgMatches,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let branch = latest_version_matches
+        .get_one::<String>("branch")
+        .expect("Invalid branch")
+        .clone();
+    let sdk = Manager::new(root);
+    sdk.fetch_version(branch).await
 }

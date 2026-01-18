@@ -1,5 +1,3 @@
-pub mod commands;
-
 use flate2::read::GzDecoder;
 use reqwest::Error;
 use std::{fs::remove_file, os::unix::fs, path::Path};
@@ -26,8 +24,7 @@ impl<'a> Manager<'a> {
         let target = format!("https://sm.alliedmods.net/smdrop/{branch}/{version}");
         println!("💾 Downlading sdk: {target}");
         let body = reqwest::get(target).await?.bytes().await?;
-        let gz = GzDecoder::new(&body[..]);
-        let mut archive = Archive::new(gz);
+        let mut archive = Archive::new(GzDecoder::new(&body[..]));
         let out_path = self.root.join(format!("sdks/sourcemod-{}", branch));
         println!("📤 Extracting into: {:?}...", out_path);
         archive.unpack(out_path)?;
